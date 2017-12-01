@@ -32,42 +32,46 @@ int main(int argc,char* argv[])
     int visionSensorHandler;
 
 
-        printf("Laczenie z serwerem V-REP Remote Api...\n");
+    printf("Laczenie z serwerem V-REP Remote Api...\n");
     int clientID=simxStart("127.0.0.1",20000,true,true,2000,5);
 
-        if (clientID == -1)
-        {
-                printf("Blad laczenia\n");
-                return 0;
-        }
+    if (clientID == -1)
+    {
+            printf("Blad laczenia\n");
+            return 0;
+    }
 
-        int ret1 = simxGetObjectHandle(clientID, "jh", &horizontalMotor, simx_opmode_blocking);
-        int ret2 = simxGetObjectHandle(clientID, "jv", &verticalMotor, simx_opmode_blocking);
-        int ret3 = simxGetObjectHandle(clientID, "vision_sensor", &visionSensorHandler, simx_opmode_blocking);
+    int ret1 = simxGetObjectHandle(clientID, "jh", &horizontalMotor, simx_opmode_blocking);
+    int ret2 = simxGetObjectHandle(clientID, "jv", &verticalMotor, simx_opmode_blocking);
+    int ret3 = simxGetObjectHandle(clientID, "vision_sensor", &visionSensorHandler, simx_opmode_blocking);
 
-        if (ret1 != simx_return_ok || ret2 != simx_return_ok || ret3 != simx_return_ok)
-        {
-                printf("Blad komunikacji (1)\n");
-                printf("ret1=%d; ret2=%d; ret3=%d\n", ret1, ret2, ret3);
-                simxFinish(clientID);
-                return 0;
-        }
+    if (ret1 != simx_return_ok || ret2 != simx_return_ok || ret3 != simx_return_ok)
+    {
+            printf("Blad komunikacji (1)\n");
+            printf("ret1=%d; ret2=%d; ret3=%d\n", ret1, ret2, ret3);
+            simxFinish(clientID);
+            return 0;
+    }
 
-        printf("Uchwyt remoteApiControlledBubbleRobLeftMotor = %d\n", horizontalMotor);
-        printf("Uchwyt remoteApiControlledBubbleRobRightMotor = %d\n", verticalMotor);
-        printf("Uchwyt remoteApiControlledBubbleRobSensingNose = %d\n", visionSensorHandler);
+    printf("Uchwyt remoteApiControlledBubbleRobLeftMotor = %d\n", horizontalMotor);
+    printf("Uchwyt remoteApiControlledBubbleRobRightMotor = %d\n", verticalMotor);
+    printf("Uchwyt remoteApiControlledBubbleRobSensingNose = %d\n", visionSensorHandler);
 
-        //
+    int driveBackStartTime=-99000;
+    float motorSpeeds[2];
 
-        int driveBackStartTime=-99000;
-        float motorSpeeds[2];
+    motorSpeeds[0] = -3.1415f*0;
+    motorSpeeds[1] = -3.1415f*0;
+    simxSetJointTargetVelocity(clientID, horizontalMotor, motorSpeeds[0], simx_opmode_oneshot);
+    simxSetJointTargetVelocity(clientID, verticalMotor, motorSpeeds[1], simx_opmode_oneshot);
+    extApi_sleepMs(5000);
 
-        motorSpeeds[0] = -3.1415f*0;
-        motorSpeeds[1] = -3.1415f*0;
-        simxSetJointTargetVelocity(clientID, horizontalMotor, motorSpeeds[0], simx_opmode_oneshot);
-        simxSetJointTargetVelocity(clientID, verticalMotor, motorSpeeds[1], simx_opmode_oneshot);
-        extApi_sleepMs(2000);
-
+	int blobCnt;
+	int valuesPerBlob;
+	
+	float xim;
+			float yim ;
+	
     while (simxGetConnectionId(clientID)!=-1)
     {
         printf(".");
@@ -80,32 +84,55 @@ int main(int argc,char* argv[])
             auxValues[i] = (simxFloat*)simxCreateBuffer(35*sizeof(simxFloat));
         }
 
-
-        if (simxReadVisionSensor(clientID,visionSensorHandler, NULL, auxValues, &auxValuesCount,simx_opmode_streaming)==simx_return_ok)
+		simxUChar sensorTrigger=0;
+        if (simxReadVisionSensor(clientID,visionSensorHandler, &sensorTrigger, auxValues, &auxValuesCount,simx_opmode_streaming)==simx_return_ok)
         {
             // We succeeded at reading the vision sensor
+			
+			/*blobCnt = int((auxValues[auxValuesCount[1] + 0]) + 0.5);
+			valuesPerBlob = int((auxValues[auxValuesCount[1] + 1]) + 0.5);*/
+			
+			//xim = float(*(auxValues[auxValuesCount[1] + (valuesPerBlob * 1) + 4]));
+			//yim = float(*(auxValues[auxValuesCount[1] + (valuesPerBlob * 1) + 5]));
+			
+			/*printf("AuxValues[0][]= %.2f  \n", xim);
+			
+			printf("AuxValues[0][]= %.2f  \n", yim);*/
+			
+			if(auxValues[0][8] >= 1) {
+				printf("*");
+				fflush(stdout);
+				
+				double ox = auxValues[0][19];
+				double oy = auxValues[0][20];
 
-            for (int i = 0; i < 20; i++){
-                printf("AuxValues[0][]= %.2f", auxValues[0][i]);
-            }
-
-            int simulationTime=simxGetLastCmdTime(clientID);
-            if (simulationTime-driveBackStartTime<3000)
-            { // driving backwards while slightly turning:
-                //motorSpeeds[0]=-3.1415f*0.5f;
-                //motorSpeeds[1]=-3.1415f*0.25f;
-            }
-            else
-            { // going forward:
-                //motorSpeeds[0]=3.1415f;
-                //motorSpeeds[1]=3.1415f;
-                //if (sensorTrigger)
-                    //driveBackStartTime=simulationTime; // We detected something, and start the backward mode
-            }
-            simxSetJointTargetVelocity(clientID,horizontalMotor,motorSpeeds[0],simx_opmode_oneshot);
+				int simulationTime=simxGetLastCmdTime(clientID);
+				if (simulationTime-driveBackStartTime<3000)
+				{ // driving backwards while slightly turning:
+					motorSpeeds[0]=0;
+					motorSpeeds[1]=0;
+				}
+				else
+				{ // going forward:
+					motorSpeeds[0]= -0.5 * ( 0.5f - ox);
+					//motorSpeeds[1]= -1.5 * ( 0.5f - oy);
+					if (sensorTrigger)
+						driveBackStartTime=simulationTime; // We detected something, and start the backward mode
+				}
+			simxSetJointTargetVelocity(clientID,horizontalMotor,motorSpeeds[0],simx_opmode_oneshot);
             simxSetJointTargetVelocity(clientID,verticalMotor,motorSpeeds[1],simx_opmode_oneshot);
+			}
+			
+			else {
+			
+			motorSpeeds[0]=0;
+					motorSpeeds[1]=0;
+			simxSetJointTargetVelocity(clientID,horizontalMotor,motorSpeeds[0],simx_opmode_oneshot);
+            simxSetJointTargetVelocity(clientID,verticalMotor,motorSpeeds[1],simx_opmode_oneshot);
+			
+			}
         }
-        extApi_sleepMs(5);
+        extApi_sleepMs(10);
     }
     simxFinish(clientID);
 }
